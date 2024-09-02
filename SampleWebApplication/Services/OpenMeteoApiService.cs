@@ -6,7 +6,6 @@ namespace SampleWebApplication.Services;
 
 public class OpenMeteoApiService(
     IHttpClientFactory httpClientFactory, 
-    Instrumentation instrumentation, 
     ILogger<OpenMeteoApiService> logger,
     IMemoryCache cache) : IWeatherService
 {
@@ -30,14 +29,10 @@ public class OpenMeteoApiService(
         var response = await cache.GetOrCreateAsync("weather",
             async entry =>
             {
-                using var activity = instrumentation.ActivitySource.StartActivity("Get Weather Forecast From API");
-
                 entry.SetAbsoluteExpiration(TimeSpan.FromSeconds(10));
 
                 return await client.GetFromJsonAsync<OpenMeteoResponse>($"v1/forecast?latitude=46.05&longitude=14.5&daily=temperature_2m_max&timezone=auto&forecast_days={days}");
             });
-        
-        Activity.Current?.AddEvent(new("Received API Data"));
 
         var forecasts = response.Summary.Days
             .Zip(response.Summary.Temperatures)
@@ -50,7 +45,6 @@ public class OpenMeteoApiService(
                     9)]))
             .ToArray();
 
-        instrumentation.HotDaysCounter.Add(forecasts.Count(x => x.Summary == "Hot"));
         logger.LogInformation("Open Meteo API Request returned {Count} forecasts", forecasts.Length);
         return forecasts;
     }

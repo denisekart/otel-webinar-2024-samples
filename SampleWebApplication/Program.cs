@@ -1,8 +1,3 @@
-using Microsoft.Extensions.Caching.Memory;
-using OpenTelemetry.Logs;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 using SampleWebApplication.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,33 +14,6 @@ builder.Services.AddMemoryCache(opts =>
     opts.TrackStatistics = true;
     opts.ExpirationScanFrequency = TimeSpan.FromSeconds(5); // just for demo, this is way too low
 });
-
-builder.Logging.ClearProviders();
-builder.Services.AddSingleton<Instrumentation>();
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(builder => builder
-        .AddService("SampleWebApplication", serviceVersion: "1.0.0")
-        .AddTelemetrySdk())
-    .WithLogging(builder =>
-        builder
-            .AddConsoleExporter()
-            .AddOtlpExporter())
-    .WithTracing(builder =>
-        builder
-            .AddConsoleExporter()
-            .AddOtlpExporter()
-            .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
-            .AddSource(Instrumentation.ActivitySourceName)
-            .SetSampler(new AlwaysOnSampler()))
-    .WithMetrics(builder =>
-        builder
-            .AddConsoleExporter()
-            .AddOtlpExporter()
-            .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
-            .AddRuntimeInstrumentation()
-            .AddMeter(Instrumentation.MeterName));
 
 var app = builder.Build();
 
@@ -67,10 +35,5 @@ app.MapGet("/weatherforecast",
         })
     .WithName("GetWeatherForecast")
     .WithOpenApi();
-
-var instrumentation = app.Services.GetRequiredService<Instrumentation>();
-var cache = app.Services.GetRequiredService<IMemoryCache>();
-instrumentation.MeasureCacheHits(() => cache.GetCurrentStatistics()!.TotalHits);
-instrumentation.MeasureCacheMisses(() => cache.GetCurrentStatistics()!.TotalMisses);
 
 app.Run();
