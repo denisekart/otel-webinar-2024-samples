@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
-using SampleWebApplication;
+
+namespace SampleWebApplication.Services;
 
 public class OpenMeteoApiService(
     IHttpClientFactory httpClientFactory, 

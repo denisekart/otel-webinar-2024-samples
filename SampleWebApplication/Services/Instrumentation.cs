@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
-namespace SampleWebApplication;
+namespace SampleWebApplication.Services;
 
 public class Instrumentation : IDisposable
 {
@@ -22,6 +22,16 @@ public class Instrumentation : IDisposable
     public ActivitySource ActivitySource { get; }
 
     public Counter<long> HotDaysCounter { get; }
+    
+    public void MeasureCacheHits(Func<long> callback)
+    {
+        _meter.CreateObservableGauge("cache.hits", callback, description: "The number of cache hits");
+    }
+    
+    public void MeasureCacheMisses(Func<long> callback)
+    {
+        _meter.CreateObservableGauge("cache.misses", callback, description: "The number of cache misses");
+    }
 
     public void Dispose()
     {
