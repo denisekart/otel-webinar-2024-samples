@@ -1,7 +1,13 @@
+using System.Diagnostics;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Caching.Memory;
 using SampleWebApplication;
 
-public class OpenMeteoApiService(IHttpClientFactory httpClientFactory, Instrumentation instrumentation, ILogger<OpenMeteoApiService> logger) : IWeatherService
+public class OpenMeteoApiService(
+    IHttpClientFactory httpClientFactory, 
+    Instrumentation instrumentation, 
+    ILogger<OpenMeteoApiService> logger,
+    IMemoryCache cache) : IWeatherService
 {
     string[] summaries = new[]
     {
@@ -10,20 +16,28 @@ public class OpenMeteoApiService(IHttpClientFactory httpClientFactory, Instrumen
 
     record OpenMeteoSummary(
         [property: JsonPropertyName("time")] List<DateOnly> Days,
-        [property: JsonPropertyName("temperature_2m_max")]
-        List<double> Temperatures);
+        [property: JsonPropertyName("temperature_2m_max")]List<double> Temperatures);
 
-    record OpenMeteoResponse([property: JsonPropertyName("daily")] OpenMeteoSummary Summary);
+    record OpenMeteoResponse(
+        [property: JsonPropertyName("daily")] OpenMeteoSummary Summary);
 
     public async Task<WeatherForecast[]> GetWeatherForecast(int days = 5)
     {
-        using var activity = instrumentation.ActivitySource.StartActivity();
         
         var client = httpClientFactory.CreateClient("OpenMeteo");
-        var response = await client.GetFromJsonAsync<OpenMeteoResponse>($"v1/forecast?latitude=46.05&longitude=14.5&daily=temperature_2m_max&timezone=auto&forecast_days={days}");
 
-        activity?.AddEvent(new("Received API Data"));
+        var response = await cache.GetOrCreateAsync("weather",
+            async entry =>
+            {
+                using var activity = instrumentation.ActivitySource.StartActivity("Get Weather Forecast From API");
+
+                entry.SetAbsoluteExpiration(TimeSpan.FromSeconds(10));
+
+                return await client.GetFromJsonAsync<OpenMeteoResponse>($"v1/forecast?latitude=46.05&longitude=14.5&daily=temperature_2m_max&timezone=auto&forecast_days={days}");
+            });
         
+        Activity.Current?.AddEvent(new("Received API Data"));
+
         var forecasts = response.Summary.Days
             .Zip(response.Summary.Temperatures)
             .Select(x => new WeatherForecast(x.First,
